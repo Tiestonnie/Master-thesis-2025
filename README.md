@@ -1,5 +1,4 @@
 # Master Thesis, Ties Leneman
-# "Leveraging Explainable AI to Assess Subseasonal Forecasting for the North Atlantic Oscillation"
 
 This repository contains the source code and information for the datasets that are conducted for the Master Thesis: 
 "Leveraging Explainable AI to Assess Subseasonal Forecasting for the North Atlantic Oscillation".
