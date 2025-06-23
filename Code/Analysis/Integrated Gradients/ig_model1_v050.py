@@ -15,6 +15,7 @@ def load_data(file_path, subset_size=None):
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"File {file_path} not found")
     data = np.load(file_path)
+    print(f' dit is een andere min  and max of last sample in {file_path}: {data[-1].min():.2f}, {data[-1].max():.2f}')
     if subset_size is not None:
         data = data[:subset_size]
     nan_mask = np.isnan(data)
@@ -27,6 +28,7 @@ def load_data(file_path, subset_size=None):
             data = np.where(nan_mask, np.tile(column_means, (data.shape[0], 1)), data)
         else:
             raise ValueError("NaNs or infinite values found in labels. Please fix preprocessing.")
+        print(f'min  and max of last sample in {file_path}: {data[-1].min():.2f}, {data[-1].max():.2f}')
     return data
 
 # Integrated Gradients functie
@@ -71,7 +73,7 @@ def integrated_gradients(model, input_data, baseline=None, num_steps=50, class_i
     integrated_grads = (input_data - baseline) * avg_grads
     return integrated_grads.numpy()
 
-def visualize_attributions_cartopy(attributions, input_data, lead, seed, experiment, sample_idx, output_dir, height=24, width=144, channels=2, lat_range=(20.0, 80.0), lon_range=(-90.0, 40.0)):
+def visualize_attributions_cartopy(attributions, input_data, lead, seed, experiment, sample_idx, output_dir, height=24, width=144, channels=2, lat_range=(20.0, 80.0), lon_range=(-180.0, 180.0)):
     """
     Visualiseer Integrated Gradients attributies op een kaart.
     Args:
@@ -88,29 +90,57 @@ def visualize_attributions_cartopy(attributions, input_data, lead, seed, experim
         lat_range: Tuple van (min_lat, max_lat).
         lon_range: Tuple van (min_lon, max_lon).
     """
+#    print(f'input data minimum: {input_data.min()}, maximum: {input_data.max()}')
+#    print(f"Input data shape for sample {sample_idx}: {input_data.shape}")
+#    #input_reshaped = input_data.reshape(1, height, width, channels)
+#    slp_input = input_data[0, :3456].reshape(24, 144)
+#    v050_input = input_data[0, 3456:].reshape(24, 144)
+#    print(f"SLP input min/max: {slp_input.min():.2f}, {slp_input.max():.2f}")
+#   print(f"v050 input min/max: {v050_input.min():.2f}, {v050_input.max():.2f}")
+
+
+
     # Reshape input en attributies
-    input_reshaped = input_data.reshape(1, height, width, channels)
-    attrs_reshaped = attributions.reshape(1, height, width, channels)
+#    print(f'input_data.shape: {input_data.shape}, attributions.shape: {attributions.shape}')
+#    print(input_data)
+#    print(f'input_data[:5]: {input_data[:5]}')
+#    input_reshaped = input_data.reshape(1, height, width, channels)
+#    attrs_reshaped = attributions.reshape(1, height, width, channels)
+    # Shift the data by 72 indices (approximately 180° eastward)
+
+
+    # Extraheer SLP en v050 met directe indexering
+    slp_input = input_data[0, :3456].reshape(24, 144)
+    v050_input = input_data[0, 3456:].reshape(24, 144)
+    slp_attrs = attributions[0, :3456].reshape(24, 144)
+    v050_attrs = attributions[0, 3456:].reshape(24, 144)
     
-    # Extraheer SLP en v050
-    slp_input = input_reshaped[0, :, :, 0]  # Shape: [24, 144]
-    v050_input = input_reshaped[0, :, :, 1]  # Shape: [24, 144]
-    slp_attrs = attrs_reshaped[0, :, :, 0]  # Shape: [24, 144]
-    v050_attrs = attrs_reshaped[0, :, :, 1]  # Shape: [24, 144]
+    shift_indices = 72  # 180° / 2.5° = 72 indices
+    slp_input = np.roll(slp_input, shift_indices, axis=1)
+    v050_input = np.roll(v050_input, shift_indices, axis=1)
+    slp_attrs = np.roll(slp_attrs, shift_indices, axis=1)
+    v050_attrs = np.roll(v050_attrs, shift_indices, axis=1)
     
     # Controleer kanaalvolgorde door bereik te printen
     print(f"Sample {sample_idx} - SLP kanaal (kanaal 0) min: {slp_input.min():.2f}, max: {slp_input.max():.2f}")
     print(f"Sample {sample_idx} - v050 kanaal (kanaal 1) min: {v050_input.min():.2f}, max: {v050_input.max():.2f}")
-    
+  
     # Normaliseer attributies
     slp_attrs = slp_attrs / np.max(np.abs(slp_attrs)) if np.max(np.abs(slp_attrs)) != 0 else slp_attrs
     v050_attrs = v050_attrs / np.max(np.abs(v050_attrs)) if np.max(np.abs(v050_attrs)) != 0 else v050_attrs
     
     # Definieer coördinaten
    
+    print(f'lons before: {lon_range}')
+    print(f'lats before: {lat_range}')
+
     lons = np.linspace(lon_range[0], lon_range[1], width)
-    lats = np.linspace(lat_range[1], lat_range[0], height)
+    lats = np.linspace(lat_range[0], lat_range[1], height)
+    print(f'lons after: {lons}')
+    print(f'lats after: {lats}')
+
     
+
     # Maak een figuur met 2x2 subplots
     fig = plt.figure(figsize=(14, 8))
     projection = ccrs.PlateCarree()
@@ -123,7 +153,7 @@ def visualize_attributions_cartopy(attributions, input_data, lead, seed, experim
     fig.colorbar(mesh1, ax=ax1, label='SLP (hPa)')
     ax1.set_title(f'SLP Input (Sample {sample_idx})')
     ax1.set_extent([-90, 40, 20, 80], crs=ccrs.PlateCarree())
-    
+
     # Plot SLP attributies
     ax2 = fig.add_subplot(222, projection=projection)
     ax2.coastlines()
@@ -132,17 +162,17 @@ def visualize_attributions_cartopy(attributions, input_data, lead, seed, experim
     fig.colorbar(mesh2, ax=ax2, label='Attribution')
     ax2.set_title(f'SLP Attributions (Integrated Gradients)')
     ax2.set_extent([-90, 40, 20, 80], crs=ccrs.PlateCarree())
-    
-    # Plot v050 input
+
+# Plot v050 input
     ax3 = fig.add_subplot(223, projection=projection)
     ax3.coastlines()
     ax3.add_feature(cfeature.LAND, facecolor='lightgray')
-    mesh3 = ax3.pcolormesh(lons, lats, v050_input, transform=ccrs.PlateCarree(), cmap='coolwarm')
+    mesh3 = ax3.pcolormesh(lons, lats, v050_input, transform=ccrs.PlateCarree(), cmap='RdBu_r')  # Changed to RdBu_r
     fig.colorbar(mesh3, ax=ax3, label='v050 (m/s)')
     ax3.set_title(f'v050 Input (Sample {sample_idx})')
     ax3.set_extent([-90, 40, 20, 80], crs=ccrs.PlateCarree())
-    
-    # Plot v050 attributies
+
+# Plot v050 attributies
     ax4 = fig.add_subplot(224, projection=projection)
     ax4.coastlines()
     ax4.add_feature(cfeature.LAND, facecolor='lightgray')
@@ -150,9 +180,11 @@ def visualize_attributions_cartopy(attributions, input_data, lead, seed, experim
     fig.colorbar(mesh4, ax=ax4, label='Attribution')
     ax4.set_title(f'v050 Attributions (Integrated Gradients)')
     ax4.set_extent([-90, 40, 20, 80], crs=ccrs.PlateCarree())
-    
+
     plt.suptitle(f'Integrated Gradients: Lead {lead}, Seed {seed}, Experiment {experiment}')
     plt.tight_layout()
+
+# Note: Updated on 02:44 PM CEST, Saturday, June 21, 2025
     
     # Sla de figuur op
     os.makedirs(output_dir, exist_ok=True)
@@ -169,7 +201,7 @@ parser.add_argument('--experiment', type=str, required=True, help="Experiment fi
 args = parser.parse_args()
 
 # Directories
-ddir_data = "/gpfs/home4/tleneman/Data/Processed_cesm2/test_set_v050/"
+ddir_data = "/gpfs/home4/tleneman/Data/Processed_cesm2_combined"
 ddir_out = "/gpfs/home4/tleneman/model1_v050/"
 output_dir = "/gpfs/home4/tleneman/model1_v050/results_test_set/"
 analysis_output_dir = "/gpfs/home4/tleneman/model1_v050/results_test_new/analysis/"
@@ -239,12 +271,19 @@ for seed in seeds:
     Y_pred_prob, Y_pred, Y_true, accuracy = predict_with_model(model_file, X_test, Y_test, lead, seed, experiment)
     
     # Selecteer een willekeurige hoge-confidence sample voor klasse 1 (positief NAO)
-    confidence_scores = Y_pred_prob[:, 1]  # Confidence voor klasse 1
-    high_conf_indices = np.where(confidence_scores > 0.7)[0]  # Samples met confidence > 0.7
-    if len(high_conf_indices) == 0:
-        high_conf_idx = np.argmax(confidence_scores)  # Fallback: hoogste confidence
+    confidence_scores = Y_pred_prob[:, 0]
+    correct_mask = (Y_pred == Y_true) & (Y_pred == 0)
+    high_conf_correct_indices = np.where(correct_mask & (confidence_scores > 0.768))[0]
+    if len(high_conf_correct_indices) == 0:
+        print(f"No correct high-confidence samples found for class 1, falling back to highest confidence correct sample")
+        correct_indices = np.where(correct_mask)[0]
+        if len(correct_indices) == 0:
+            print(f"No correct samples found for class 1, skipping sample selection for seed {seed}")
+            continue
+        high_conf_idx = correct_indices[np.argmax(confidence_scores[correct_indices])]
     else:
-        high_conf_idx = np.random.choice(high_conf_indices)  # Willekeurige keuze uit hoge-confidence samples
+        high_conf_idx = np.random.choice(high_conf_correct_indices)
+    #high_conf_idx = 24866  # Zorg dat het een integer is voor indexering
     high_conf_score = confidence_scores[high_conf_idx]
     predicted_class = np.argmax(Y_pred_prob[high_conf_idx])
     true_class = np.argmax(Y_test[high_conf_idx])
@@ -253,11 +292,12 @@ for seed in seeds:
     # Integrated Gradients voor het geselecteerde sample
     model = load_model(model_file, custom_objects=custom_objects)
     input_data = X_test[high_conf_idx:high_conf_idx+1]  # Shape: [1, 6912]
+    print(f"input_data.shape: {input_data.shape}, input_data[:5]: {input_data[:5]}")
     baseline = np.mean(X_test, axis=0, keepdims=True)  # Shape: [1, 6912]
     ig_attrs = integrated_gradients(model, input_data, baseline=baseline, class_index=1)
     visualize_attributions_cartopy(
         ig_attrs, input_data, lead, seed, experiment, high_conf_idx, analysis_output_dir,
-        height=24, width=144, channels=2, lat_range=(20.0, 80.0), lon_range=(-90.0, 40.0)
+        height=24, width=144, channels=2
     )
     
     # Rest van je bestaande code
